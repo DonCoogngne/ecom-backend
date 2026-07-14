@@ -1,4 +1,4 @@
-@ecom_backend_HostAddress = http://localhost:5073
+@ecom_backend_HostAddress = https://localhost:7209
 
 POST {{ecom_backend_HostAddress}}/api/auth/login
 Content-Type: application/json
