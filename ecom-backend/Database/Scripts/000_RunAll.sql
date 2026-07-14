@@ -8,3 +8,4 @@
 :r .\Tables\001_CreateRoles.sql
 :r .\Tables\002_CreateUsers.sql
 :r .\Seed\001_SeedRoles.sql
+:r .\Seed\002_SeedAdminRole.sql
