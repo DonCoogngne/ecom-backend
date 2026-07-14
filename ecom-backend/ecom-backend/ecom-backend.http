@@ -1,0 +1,11 @@
+@ecom_backend_HostAddress = http://localhost:5073
+
+POST {{ecom_backend_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "you@example.com",
+  "password": "yourpassword"
+}
+
+###

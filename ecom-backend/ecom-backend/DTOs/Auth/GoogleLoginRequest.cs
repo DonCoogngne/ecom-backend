@@ -1,0 +1,9 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace ecom_backend.DTOs.Auth;
+
+public class GoogleLoginRequest
+{
+    [Required]
+    public string IdToken { get; set; } = string.Empty;
+}
