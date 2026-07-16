@@ -23,4 +23,26 @@ public class BusinessProfileController(
     {
         return Ok(await businessProfileService.SaveAsync(CurrentUserId, request, cancellationToken));
     }
+
+    [HttpPost("logo")]
+    [RequestSizeLimit(6 * 1024 * 1024)]
+    public async Task<ActionResult<BusinessProfileDto>> UploadLogo(
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "No file was uploaded." });
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var result = await businessProfileService.UploadLogoAsync(
+                CurrentUserId, stream, file.FileName, file.ContentType, file.Length, cancellationToken);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }

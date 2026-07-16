@@ -10,4 +10,12 @@ public interface IBusinessProfileService
         int userId,
         SaveBusinessProfileRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<BusinessProfileDto> UploadLogoAsync(
+        int userId,
+        Stream content,
+        string fileName,
+        string contentType,
+        long length,
+        CancellationToken cancellationToken = default);
 }
