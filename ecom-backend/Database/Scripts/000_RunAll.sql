@@ -11,5 +11,7 @@
 :r .\Tables\004_CreateBusinessProfiles.sql
 :r .\Tables\005_CreateSubscriptions.sql
 :r .\Tables\006_CreateInvoices.sql
+:r .\Tables\007_CreateUserAuthentication.sql
+:r .\Tables\008_CreateRefreshTokens.sql
 :r .\Seed\001_SeedRoles.sql
 :r .\Seed\002_SeedAdminRole.sql

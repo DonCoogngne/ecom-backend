@@ -96,4 +96,33 @@ public static class EntityMappings
         Amount = entity.Amount,
         Status = entity.Status
     };
+
+    public static RefreshTokenModel ToModel(this RefreshToken entity) => new()
+    {
+        RefreshTokenId = entity.RefreshTokenId,
+        UserId = entity.UserId,
+        TokenHash = entity.TokenHash,
+        ExpiresAt = entity.ExpiresAt,
+        CreatedAt = entity.CreatedAt,
+        RevokedAt = entity.RevokedAt,
+        ReplacedByTokenHash = entity.ReplacedByTokenHash,
+        CreatedByIp = entity.CreatedByIp,
+        RevokedByIp = entity.RevokedByIp,
+        DeviceName = entity.DeviceName,
+        IsActive = entity.IsActive
+    };
+
+    public static RefreshToken ToEntity(this RefreshTokenModel model) => new()
+    {
+        RefreshTokenId = model.RefreshTokenId == Guid.Empty ? Guid.NewGuid() : model.RefreshTokenId,
+        UserId = model.UserId,
+        TokenHash = model.TokenHash,
+        ExpiresAt = model.ExpiresAt,
+        CreatedAt = model.CreatedAt == default ? DateTime.UtcNow : model.CreatedAt,
+        RevokedAt = model.RevokedAt,
+        ReplacedByTokenHash = model.ReplacedByTokenHash,
+        CreatedByIp = model.CreatedByIp,
+        RevokedByIp = model.RevokedByIp,
+        DeviceName = model.DeviceName
+    };
 }

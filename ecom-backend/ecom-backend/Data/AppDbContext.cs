@@ -10,6 +10,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<BusinessProfile> BusinessProfiles => Set<BusinessProfile>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<UserAuthentication> UserAuthentications => Set<UserAuthentication>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -88,6 +90,43 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(i => i.Status).HasMaxLength(30).IsRequired();
             entity.Property(i => i.Amount).HasPrecision(10, 2);
             entity.HasIndex(i => i.SubscriptionId);
+        });
+
+        modelBuilder.Entity<UserAuthentication>(entity =>
+        {
+            entity.ToTable("UserAuthentication");
+            entity.HasKey(a => a.UserAuthenticationId);
+            entity.Property(a => a.Provider).HasMaxLength(30).IsRequired();
+            entity.Property(a => a.ProviderUserId).HasMaxLength(256);
+            entity.Property(a => a.PasswordHash).HasMaxLength(500);
+            entity.HasIndex(a => new { a.UserId, a.Provider }).IsUnique();
+
+            entity.HasOne(a => a.User)
+                .WithMany()
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.ToTable("RefreshTokens");
+            entity.HasKey(r => r.RefreshTokenId);
+            entity.Property(r => r.RefreshTokenId).HasDefaultValueSql("NEWID()");
+            entity.Property(r => r.TokenHash).HasMaxLength(500).IsRequired();
+            entity.Property(r => r.ReplacedByTokenHash).HasMaxLength(500);
+            entity.Property(r => r.CreatedByIp).HasMaxLength(45);
+            entity.Property(r => r.RevokedByIp).HasMaxLength(45);
+            entity.Property(r => r.DeviceName).HasMaxLength(200);
+            entity.Property(r => r.IsActive)
+                .HasComputedColumnSql(
+                    "CASE WHEN RevokedAt IS NULL AND ExpiresAt > SYSUTCDATETIME() THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END");
+            entity.HasIndex(r => r.TokenHash).IsUnique();
+            entity.HasIndex(r => r.UserId);
+
+            entity.HasOne(r => r.User)
+                .WithMany()
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

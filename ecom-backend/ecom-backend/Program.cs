@@ -48,6 +48,8 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IBusinessProfileRepository, BusinessProfileRepository>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<IUserAuthenticationRepository, UserAuthenticationRepository>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
@@ -85,7 +87,8 @@ builder.Services.AddCors(options =>
                 "http://localhost:4173",
                 "https://localhost:4173")
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 

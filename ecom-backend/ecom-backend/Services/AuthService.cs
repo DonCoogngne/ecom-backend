@@ -2,6 +2,7 @@ using ecom_backend.DTOs.Auth;
 using ecom_backend.Interfaces.Repositories;
 using ecom_backend.Interfaces.Services;
 using ecom_backend.Models;
+using ecom_backend.Security;
 using Google.Apis.Auth;
 
 namespace ecom_backend.Services;
@@ -9,13 +10,22 @@ namespace ecom_backend.Services;
 public class AuthService(
     IUserRepository userRepository,
     IRoleRepository roleRepository,
+    IRefreshTokenRepository refreshTokenRepository,
+    IUserAuthenticationRepository userAuthenticationRepository,
     IJwtTokenService jwtTokenService,
     IConfiguration configuration) : IAuthService
 {
     private const string DefaultRoleName = "Customer";
+    private const string ProviderEmail = "Email";
+    private const string ProviderGoogle = "Google";
 
-    public async Task<AuthResponse> SignupAsync(
+    private int RefreshTokenExpiresDays =>
+        int.TryParse(configuration["Jwt:RefreshTokenExpiresDays"], out var days) ? days : 7;
+
+    public async Task<AuthResult> SignupAsync(
         SignupRequest request,
+        string? ipAddress = null,
+        string? deviceName = null,
         CancellationToken cancellationToken = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
@@ -26,12 +36,14 @@ public class AuthService(
         var role = await roleRepository.GetByNameAsync(DefaultRoleName, cancellationToken)
             ?? throw new InvalidOperationException("Default role is not configured.");
 
+        var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
         var user = new UserModel
         {
             FirstName = request.FirstName.Trim(),
             LastName = request.LastName.Trim(),
             Email = email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            PasswordHash = passwordHash,
             CreatedDate = DateTime.UtcNow,
             IsActive = true,
             RoleId = role.RoleId,
@@ -39,11 +51,17 @@ public class AuthService(
         };
 
         user = await userRepository.AddAsync(user, cancellationToken);
-        return BuildResponse(user);
+
+        await userAuthenticationRepository.UpsertAsync(
+            user.UserId, ProviderEmail, null, passwordHash, touchLastLogin: true, cancellationToken);
+
+        return await IssueTokensAsync(user, ipAddress, deviceName, cancellationToken);
     }
 
-    public async Task<AuthResponse> LoginAsync(
+    public async Task<AuthResult> LoginAsync(
         LoginRequest request,
+        string? ipAddress = null,
+        string? deviceName = null,
         CancellationToken cancellationToken = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
@@ -56,11 +74,16 @@ public class AuthService(
             !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Invalid email or password.");
 
-        return BuildResponse(user);
+        await userAuthenticationRepository.UpsertAsync(
+            user.UserId, ProviderEmail, null, user.PasswordHash, touchLastLogin: true, cancellationToken);
+
+        return await IssueTokensAsync(user, ipAddress, deviceName, cancellationToken);
     }
 
-    public async Task<AuthResponse> GoogleLoginAsync(
+    public async Task<AuthResult> GoogleLoginAsync(
         GoogleLoginRequest request,
+        string? ipAddress = null,
+        string? deviceName = null,
         CancellationToken cancellationToken = default)
     {
         var googleClientId = configuration["Google:ClientId"];
@@ -112,7 +135,102 @@ public class AuthService(
             user = await userRepository.UpdateAsync(user, cancellationToken);
         }
 
-        return BuildResponse(user);
+        await userAuthenticationRepository.UpsertAsync(
+            user.UserId, ProviderGoogle, payload.Subject, null, touchLastLogin: true, cancellationToken);
+
+        return await IssueTokensAsync(user, ipAddress, deviceName, cancellationToken);
+    }
+
+    public async Task<AuthResult> RefreshAsync(
+        string refreshToken,
+        string? ipAddress = null,
+        string? deviceName = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+            throw new UnauthorizedAccessException("Missing refresh token.");
+
+        var hash = TokenHasher.Hash(refreshToken);
+        var stored = await refreshTokenRepository.GetByHashAsync(hash, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Invalid refresh token.");
+
+        // Reuse detection: a token that was already revoked is being presented again.
+        if (stored.RevokedAt is not null)
+        {
+            await refreshTokenRepository.RevokeAllActiveForUserAsync(
+                stored.UserId, ipAddress, cancellationToken);
+            throw new UnauthorizedAccessException("Refresh token has been revoked.");
+        }
+
+        if (stored.ExpiresAt <= DateTime.UtcNow)
+            throw new UnauthorizedAccessException("Refresh token has expired.");
+
+        var user = await userRepository.GetByIdAsync(stored.UserId, cancellationToken);
+        if (user is null || !user.IsActive)
+            throw new UnauthorizedAccessException("Account is no longer active.");
+
+        // Rotate: issue a new token, then revoke the old one pointing at the replacement.
+        var newRawToken = TokenHasher.GenerateToken();
+        var newHash = TokenHasher.Hash(newRawToken);
+        var expiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpiresDays);
+
+        await refreshTokenRepository.AddAsync(new RefreshTokenModel
+        {
+            UserId = user.UserId,
+            TokenHash = newHash,
+            ExpiresAt = expiresAt,
+            CreatedAt = DateTime.UtcNow,
+            CreatedByIp = ipAddress,
+            DeviceName = deviceName ?? stored.DeviceName
+        }, cancellationToken);
+
+        await refreshTokenRepository.RevokeAsync(hash, ipAddress, newHash, cancellationToken);
+
+        return new AuthResult
+        {
+            Response = BuildResponse(user),
+            RefreshToken = newRawToken,
+            RefreshTokenExpiresAt = expiresAt
+        };
+    }
+
+    public async Task LogoutAsync(
+        string refreshToken,
+        string? ipAddress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+            return;
+
+        var hash = TokenHasher.Hash(refreshToken);
+        await refreshTokenRepository.RevokeAsync(hash, ipAddress, null, cancellationToken);
+    }
+
+    private async Task<AuthResult> IssueTokensAsync(
+        UserModel user,
+        string? ipAddress,
+        string? deviceName,
+        CancellationToken cancellationToken)
+    {
+        var rawToken = TokenHasher.GenerateToken();
+        var expiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpiresDays);
+
+        await refreshTokenRepository.AddAsync(new RefreshTokenModel
+        {
+            UserId = user.UserId,
+            TokenHash = TokenHasher.Hash(rawToken),
+            ExpiresAt = expiresAt,
+            CreatedAt = DateTime.UtcNow,
+            CreatedByIp = ipAddress,
+            DeviceName = deviceName
+        }, cancellationToken);
+
+        return new AuthResult
+        {
+            Response = BuildResponse(user),
+            RefreshToken = rawToken,
+            RefreshTokenExpiresAt = expiresAt
+        };
     }
 
     private AuthResponse BuildResponse(UserModel user) => new()
