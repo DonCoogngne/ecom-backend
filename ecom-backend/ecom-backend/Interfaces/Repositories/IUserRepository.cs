@@ -8,6 +8,8 @@ public interface IUserRepository
 
     Task<UserModel?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
 
+    Task<UserModel?> GetByIdAsync(int userId, CancellationToken cancellationToken = default);
+
     Task<UserModel?> GetByEmailOrGoogleIdAsync(
         string email,
         string googleId,

@@ -40,6 +40,25 @@ public class UserRepository(AppDbContext db, ILogger<UserRepository> logger) : I
         }
     }
 
+    public async Task<UserModel?> GetByIdAsync(
+        int userId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var entity = await db.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.UserId == userId, cancellationToken);
+
+            return entity?.ToModel();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Failed to get user by id {UserId}", userId);
+            throw;
+        }
+    }
+
     public async Task<UserModel?> GetByEmailOrGoogleIdAsync( string email, string googleId, CancellationToken cancellationToken = default)
     {
         try

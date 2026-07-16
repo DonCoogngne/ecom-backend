@@ -7,5 +7,9 @@
 
 :r .\Tables\001_CreateRoles.sql
 :r .\Tables\002_CreateUsers.sql
+:r .\Tables\003_AlterUsers_AddProfileFields.sql
+:r .\Tables\004_CreateBusinessProfiles.sql
+:r .\Tables\005_CreateSubscriptions.sql
+:r .\Tables\006_CreateInvoices.sql
 :r .\Seed\001_SeedRoles.sql
 :r .\Seed\002_SeedAdminRole.sql
