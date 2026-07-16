@@ -37,6 +37,32 @@ public class ProfileController(IProfileService profileService) : ApiControllerBa
         }
     }
 
+    [HttpPost("avatar")]
+    [RequestSizeLimit(6 * 1024 * 1024)]
+    public async Task<ActionResult<ProfileDto>> UploadAvatar(
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "No file was uploaded." });
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var result = await profileService.UploadAvatarAsync(
+                CurrentUserId, stream, file.FileName, file.ContentType, file.Length, cancellationToken);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
     [HttpPut("password")]
     public async Task<IActionResult> ChangePassword(
         [FromBody] ChangePasswordRequest request,

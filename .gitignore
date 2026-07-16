@@ -46,6 +46,10 @@ ScaffoldingReadMe.txt
 # dotenv environment variables file
 .env
 
+# Locally-stored uploaded media (dev file storage). Keep the folder, ignore its contents.
+ecom-backend/wwwroot/uploads/*
+!ecom-backend/wwwroot/uploads/.gitkeep
+
 # Others
 ~$*
 *~

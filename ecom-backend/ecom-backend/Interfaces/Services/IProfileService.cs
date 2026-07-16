@@ -11,6 +11,14 @@ public interface IProfileService
         UpdateProfileRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<ProfileDto> UploadAvatarAsync(
+        int userId,
+        Stream content,
+        string fileName,
+        string contentType,
+        long length,
+        CancellationToken cancellationToken = default);
+
     Task ChangePasswordAsync(
         int userId,
         ChangePasswordRequest request,

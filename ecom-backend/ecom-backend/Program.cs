@@ -4,6 +4,7 @@ using ecom_backend.Interfaces.Repositories;
 using ecom_backend.Interfaces.Services;
 using ecom_backend.Repositories;
 using ecom_backend.Services;
+using ecom_backend.Services.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -57,6 +58,20 @@ builder.Services.AddScoped<IBusinessProfileService, BusinessProfileService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<ISecurityService, SecurityService>();
 
+builder.Services.AddHttpContextAccessor();
+
+// File storage: local disk in development, Azure Blob in production.
+// Override explicitly with Storage:Provider = "Local" | "AzureBlob".
+var configuredProvider = builder.Configuration["Storage:Provider"];
+var storageProvider = string.IsNullOrWhiteSpace(configuredProvider)
+    ? (builder.Environment.IsDevelopment() ? "Local" : "AzureBlob")
+    : configuredProvider;
+
+if (storageProvider.Equals("AzureBlob", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddSingleton<IFileStorage, AzureBlobStorage>();
+else
+    builder.Services.AddScoped<IFileStorage, LocalFileStorage>();
+
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("Jwt:Key is missing from configuration.");
 
@@ -101,6 +116,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("Frontend");
+
+// Serve locally-stored uploads (wwwroot/uploads/...) in development.
+app.UseStaticFiles();
 
 if (!app.Environment.IsDevelopment())
 {
